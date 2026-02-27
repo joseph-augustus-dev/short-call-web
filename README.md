@@ -80,14 +80,6 @@ Deployment is configured via GitHub Actions in `.github/workflows/pages.yml`.
    - `404.html` (fallback copy of `index.html`)
 3. Publishes to the `github-pages` environment.
 
-### Publish steps
-
-1. Push the repository to GitHub.
-2. In **Settings → Pages**, select **GitHub Actions** as the source.
-3. Push/merge to `main` (or `master`).
-4. Monitor **Actions → Deploy Short Call Web Demo**.
-5. Copy the final live URL from the `Deploy to GitHub Pages` step.
-
 ## Future roadmap
 
 - MySQL persistence for production workloads.
