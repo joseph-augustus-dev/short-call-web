@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 110" role="img" aria-label="BC Place inspired blue logo">
+  <rect width="320" height="110" fill="none"/>
+  <g fill="none" stroke-linecap="round" stroke-width="4">
+    <polyline points="26,74 56,28 86,74" stroke="#dfe9ef" />
+    <polyline points="54,74 84,20 114,74" stroke="#dfe9ef" />
+    <polyline points="82,74 112,14 142,74" stroke="#dfe9ef" />
+    <polyline points="110,74 140,22 170,74" stroke="#00a9e0" />
+    <polyline points="138,74 168,30 198,74" stroke="#00a9e0" />
+    <polyline points="166,74 196,38 226,74" stroke="#00a9e0" />
+  </g>
+  <text x="24" y="102" fill="#f7fbff" font-size="34" font-family="Segoe UI, Arial, sans-serif" letter-spacing="1">BC</text>
+  <text x="88" y="102" fill="#00a9e0" font-size="34" font-family="Segoe UI, Arial, sans-serif" letter-spacing="1">PLACE</text>
+</svg>

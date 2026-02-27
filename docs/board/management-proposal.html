@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Short Call Web — Management Board Proposal</title>
+  <style>
+    :root { --ink:#102331; --accent:#00a9e0; --muted:#4f6677; --paper:#ffffff; }
+    body { font-family: "Segoe UI", Arial, sans-serif; margin:0; background:#eef4f8; color:var(--ink); }
+    .page { max-width: 960px; margin: 24px auto; background:var(--paper); padding: 40px 48px; box-shadow:0 10px 30px rgba(0,0,0,.12); }
+    h1,h2,h3 { margin-top:0; }
+    h1 { color:#003b5c; }
+    h2 { border-left:4px solid var(--accent); padding-left:10px; margin-top:26px; }
+    p, li { line-height:1.5; }
+    .meta { color:var(--muted); margin-bottom:24px; }
+    table { width:100%; border-collapse:collapse; margin:10px 0; }
+    th, td { border:1px solid #cddbe5; padding:8px; text-align:left; }
+    th { background:#f1f8fd; }
+    @media print {
+      body { background:#fff; }
+      .page { margin:0; max-width:none; box-shadow:none; padding:18mm; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Short Call Web — Management Board Proposal</h1>
+    <p class="meta"><strong>Version:</strong> 1.0 &nbsp; | &nbsp; <strong>Date:</strong> 2026-02-27</p>
+    <p class="meta"><strong>Legal notice:</strong> Unofficial demo prepared by an enthusiastic Computer Engineering professional; not affiliated with BC Place. BC Place names/logos/copyrights remain with their respective owners.</p>
+
+    <h2>Executive Summary</h2>
+    <p>Short Call Web is a lightweight platform to coordinate urgent shift-based staffing requests across BC Place departments. It improves staffing speed, queue transparency, and role-based governance with Schedule approval control.</p>
+
+    <h2>Business Problem</h2>
+    <ul>
+      <li>Slow staffing response during high-variability shifts.</li>
+      <li>Low transparency in candidate ordering and outcomes.</li>
+      <li>Inconsistent governance across departments.</li>
+      <li>Limited traceability for management review.</li>
+    </ul>
+
+    <h2>Proposed Solution</h2>
+    <ol>
+      <li>Manager/Admin submits short-call request.</li>
+      <li>Schedule reviews and approves/rejects publication.</li>
+      <li>Eligible employees apply.</li>
+      <li>Queue is ranked by timestamp.</li>
+      <li>Status is visible: pending / confirmed / waitlisted.</li>
+    </ol>
+
+    <h2>Target Operating Model</h2>
+    <table>
+      <thead><tr><th>Role</th><th>Responsibilities</th></tr></thead>
+      <tbody>
+        <tr><td>Employee</td><td>Apply to eligible calls and track queue/status.</td></tr>
+        <tr><td>Manager</td><td>Create requests and monitor demand fulfilment.</td></tr>
+        <tr><td>Schedule</td><td>Approve/reject requests, control frequency balancing.</td></tr>
+        <tr><td>Admin</td><td>Cross-role governance and oversight.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Roadmap</h2>
+    <h3>Phase 1 (4–6 weeks)</h3>
+    <p>Pilot deployment, KPI baselining, governance review.</p>
+    <h3>Phase 2 (6–8 weeks)</h3>
+    <p>MySQL persistence, SSO integration, audit logs.</p>
+    <h3>Phase 3 (8–12 weeks)</h3>
+    <p>Scale adoption, executive dashboards, policy automation.</p>
+
+    <h2>Decision Requested</h2>
+    <ol>
+      <li>Approve pilot authorization.</li>
+      <li>Approve production foundation budget envelope.</li>
+      <li>Approve monthly KPI review cadence.</li>
+    </ol>
+  </main>
+</body>
+</html>
