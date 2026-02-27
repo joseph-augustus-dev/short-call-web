@@ -72,13 +72,18 @@ Deployment is configured via GitHub Actions in `.github/workflows/pages.yml`.
 
 ### Workflow behaviour
 
-1. Runs on push to `main` or `master`, and on manual dispatch.
-2. Builds a static `dist/` artifact with:
-   - `index.html`
-   - `app.js`
-   - `styles.css`
-   - `404.html` (fallback copy of `index.html`)
-3. Publishes to the `github-pages` environment.
+1. Runs on push to `main`, `master`, or `work`, and on manual dispatch.
+2. Builds a static `dist/` artifact from the repository content (excluding Git metadata/workflow folders) so assets and board documentation are published together.
+3. Generates `404.html` as a fallback copy of `index.html`.
+4. Publishes to the `github-pages` environment.
+
+### Publish steps
+
+1. Push the repository to GitHub.
+2. In **Settings → Pages**, select **GitHub Actions** as the source.
+3. Push/merge to `main`, `master`, or `work`.
+4. Monitor **Actions → Deploy Short Call Web Demo**.
+5. Copy the final live URL from the `Deploy to GitHub Pages` step.
 
 ## Future roadmap
 

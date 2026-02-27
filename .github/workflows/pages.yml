@@ -2,7 +2,10 @@ name: Deploy Short Call Web Demo
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - master
+      - work
   workflow_dispatch:
 
 permissions:
@@ -11,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: true
 
 jobs:
@@ -27,11 +30,17 @@ jobs:
 
       - name: Prepare static site artifact
         run: |
+          rm -rf dist
           mkdir -p dist
-          cp index.html dist/index.html
-          cp app.js dist/app.js
-          cp styles.css dist/styles.css
-          cp index.html dist/404.html
+
+          rsync -av \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'dist/' \
+            --exclude '.DS_Store' \
+            ./ dist/
+
+          cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
