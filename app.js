@@ -1,17 +1,26 @@
-const DEPARTMENTS = [
-  "EVS",
-  "Security",
-  "Host",
-  "Conversion",
-  "Operations",
-  "Maintenance",
-  "Administration",
-];
+const DEPARTMENTS = ["EVS", "Security", "Host", "Conversion", "Operations", "Maintenance", "Administration"];
+const SHIFTS = ["Morning", "Afternoon", "Night"];
 
-const SHORT_CALL_STATUSES = {
+const STATUS = {
   PENDING_SCHEDULE: "pending_schedule",
   APPROVED: "approved",
   REJECTED: "rejected",
+};
+
+const ATTENDANCE = {
+  ATTENDING: "attending",
+  REPORTED_ABSENCE: "reported_absence",
+  REMOVED_BY_SCHEDULE: "removed_by_schedule",
+};
+
+const app = document.getElementById("app");
+
+const today = new Date();
+const iso = (d) => d.toISOString().slice(0, 10);
+const plusDays = (n) => {
+  const d = new Date(today);
+  d.setDate(d.getDate() + n);
+  return iso(d);
 };
 
 const state = {
@@ -27,25 +36,27 @@ const state = {
       title: "Post-event EVS reset",
       department: "EVS",
       shift: "Night",
+      date: plusDays(0),
       slots: 2,
       interdepartmentOpen: false,
       createdBy: "u2",
-      createdAt: new Date(Date.now() - 3600_000).toISOString(),
-      scheduleStatus: SHORT_CALL_STATUSES.APPROVED,
+      createdAt: new Date().toISOString(),
+      scheduleStatus: STATUS.APPROVED,
       scheduleReviewedBy: "u4",
-      scheduleReviewedAt: new Date(Date.now() - 1800_000).toISOString(),
-      scheduleNotes: "Approved for tonight due to peak foot traffic.",
+      scheduleReviewedAt: new Date().toISOString(),
+      scheduleNotes: "Approved for tonight operations.",
     },
     {
       id: crypto.randomUUID(),
-      title: "Gate B security support",
+      title: "Security gate support",
       department: "Security",
       shift: "Afternoon",
+      date: plusDays(1),
       slots: 1,
       interdepartmentOpen: true,
-      createdBy: "u3",
-      createdAt: new Date(Date.now() - 2400_000).toISOString(),
-      scheduleStatus: SHORT_CALL_STATUSES.PENDING_SCHEDULE,
+      createdBy: "u2",
+      createdAt: new Date().toISOString(),
+      scheduleStatus: STATUS.PENDING_SCHEDULE,
       scheduleReviewedBy: null,
       scheduleReviewedAt: null,
       scheduleNotes: "",
@@ -54,89 +65,58 @@ const state = {
   applications: [],
 };
 
-const app = document.getElementById("app");
-
 function createToken(user) {
-  return btoa(JSON.stringify({ id: user.id, role: user.role, at: Date.now() }));
+  return btoa(JSON.stringify({ id: user.id, role: user.role }));
 }
-
 function parseToken(token) {
-  try {
-    return JSON.parse(atob(token));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(atob(token)); } catch { return null; }
 }
-
 function currentUser() {
-  const token = localStorage.getItem("scw_token");
-  const payload = token && parseToken(token);
+  const payload = parseToken(localStorage.getItem("scw_token") || "");
   if (!payload) return null;
-  return state.users.find((user) => user.id === payload.id) || null;
+  return state.users.find((u) => u.id === payload.id) || null;
 }
-
-function requireAuth(allowedRoles, renderer) {
+function requireAuth(roles, cb) {
   const user = currentUser();
-  if (!user) {
-    renderLogin("Your session has ended. Please sign in again.");
+  if (!user) return renderLogin();
+  if (roles.length && !roles.includes(user.role)) {
+    app.innerHTML = `<main class="container"><section class="card"><h2>Access denied</h2></section></main>`;
     return;
   }
-
-  if (allowedRoles.length && !allowedRoles.includes(user.role)) {
-    app.innerHTML = `
-      <main class="container">
-        <section class="card">
-          <h2>Access denied</h2>
-          <p>Your role does not have permission to open this workflow.</p>
-        </section>
-      </main>
-    `;
-    return;
-  }
-
-  renderer(user);
+  cb(user);
 }
+function byId(id) { return state.users.find((u) => u.id === id); }
+function formatDateTime(v) { return new Date(v).toLocaleString("en-CA"); }
 
-function getUserById(userId) {
-  return state.users.find((user) => user.id === userId);
-}
-
-function formatDate(dateValue) {
-  return new Date(dateValue).toLocaleString("en-CA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function applicationsForCall(shortCallId) {
+function applicationsForCall(callId) {
   return state.applications
-    .filter((application) => application.shortCallId === shortCallId)
-    .sort((first, second) => new Date(first.appliedAt) - new Date(second.appliedAt));
+    .filter((a) => a.shortCallId === callId)
+    .sort((a, b) => new Date(a.appliedAt) - new Date(b.appliedAt));
 }
 
-function getApplicationStatus(position, slots) {
+function activeApplicationsForCall(callId) {
+  return applicationsForCall(callId).filter((a) => a.attendanceStatus !== ATTENDANCE.REMOVED_BY_SCHEDULE);
+}
+
+function rankStatus(position, slots) {
   if (position <= slots) return "confirmed";
   if (position <= slots + 2) return "pending";
   return "waitlisted";
 }
 
-function refreshApplicationStatuses() {
-  state.shortCalls.forEach((shortCall) => {
-    const ranking = applicationsForCall(shortCall.id);
-    ranking.forEach((applicationEntry, index) => {
-      applicationEntry.status = getApplicationStatus(index + 1, shortCall.slots);
+function refreshStatuses() {
+  state.shortCalls.forEach((call) => {
+    const ranking = activeApplicationsForCall(call.id);
+    ranking.forEach((a, idx) => {
+      a.status = rankStatus(idx + 1, call.slots);
     });
   });
 }
 
-function eligibleShortCallsForEmployee(user) {
-  return state.shortCalls.filter(
-    (shortCall) =>
-      shortCall.scheduleStatus === SHORT_CALL_STATUSES.APPROVED &&
-      (shortCall.interdepartmentOpen || shortCall.department === user.department)
+function eligibleCalls(user) {
+  return state.shortCalls.filter((c) =>
+    c.scheduleStatus === STATUS.APPROVED &&
+    (c.interdepartmentOpen || c.department === user.department)
   );
 }
 
@@ -146,442 +126,346 @@ function createShortCall(payload, creatorId) {
     ...payload,
     createdBy: creatorId,
     createdAt: new Date().toISOString(),
-    scheduleStatus: SHORT_CALL_STATUSES.PENDING_SCHEDULE,
+    scheduleStatus: STATUS.PENDING_SCHEDULE,
     scheduleReviewedBy: null,
     scheduleReviewedAt: null,
-    scheduleNotes: "Awaiting Schedule team review.",
+    scheduleNotes: "Awaiting Schedule review.",
   });
 }
 
-function setScheduleDecision(shortCallId, decisionStatus, reviewerId, scheduleNotes) {
-  const shortCall = state.shortCalls.find((item) => item.id === shortCallId);
-  if (!shortCall) return;
-
-  shortCall.scheduleStatus = decisionStatus;
-  shortCall.scheduleReviewedBy = reviewerId;
-  shortCall.scheduleReviewedAt = new Date().toISOString();
-  shortCall.scheduleNotes = scheduleNotes || (decisionStatus === SHORT_CALL_STATUSES.APPROVED ? "Approved by Schedule team." : "Rejected by Schedule team.");
-
-  if (decisionStatus === SHORT_CALL_STATUSES.REJECTED) {
-    state.applications = state.applications.filter((application) => application.shortCallId !== shortCallId);
+function setScheduleDecision(callId, decision, reviewerId, note) {
+  const c = state.shortCalls.find((x) => x.id === callId);
+  if (!c) return;
+  c.scheduleStatus = decision;
+  c.scheduleReviewedBy = reviewerId;
+  c.scheduleReviewedAt = new Date().toISOString();
+  c.scheduleNotes = note || "Reviewed by Schedule";
+  if (decision === STATUS.REJECTED) {
+    state.applications = state.applications.filter((a) => a.shortCallId !== callId);
   }
-
-  refreshApplicationStatuses();
+  refreshStatuses();
 }
 
-function applyToShortCall(shortCallId, userId) {
-  const shortCall = state.shortCalls.find((item) => item.id === shortCallId);
-  if (!shortCall || shortCall.scheduleStatus !== SHORT_CALL_STATUSES.APPROVED) return;
-
-  const alreadyApplied = state.applications.some(
-    (application) => application.shortCallId === shortCallId && application.userId === userId
-  );
-
-  if (alreadyApplied) return;
-
+function applyToCall(callId, userId) {
+  const call = state.shortCalls.find((c) => c.id === callId);
+  if (!call || call.scheduleStatus !== STATUS.APPROVED) return;
+  const exists = state.applications.some((a) => a.shortCallId === callId && a.userId === userId && a.attendanceStatus !== ATTENDANCE.REMOVED_BY_SCHEDULE);
+  if (exists) return;
   state.applications.push({
     id: crypto.randomUUID(),
-    shortCallId,
+    shortCallId: callId,
     userId,
     appliedAt: new Date().toISOString(),
     status: "pending",
+    attendanceStatus: ATTENDANCE.ATTENDING,
+    absenceType: "",
+    absenceNote: "",
+    absenceReportedAt: null,
   });
-
-  refreshApplicationStatuses();
+  refreshStatuses();
 }
 
-function renderHeader(user) {
-  const managerAccess = user.role === "manager" || user.role === "admin";
-  const scheduleAccess = user.role === "schedule" || user.role === "admin";
+function reportAbsence(applicationId, type, note) {
+  const a = state.applications.find((x) => x.id === applicationId);
+  if (!a || a.attendanceStatus === ATTENDANCE.REMOVED_BY_SCHEDULE) return;
+  a.attendanceStatus = ATTENDANCE.REPORTED_ABSENCE;
+  a.absenceType = type;
+  a.absenceNote = note;
+  a.absenceReportedAt = new Date().toISOString();
+}
 
+function removeBySchedule(applicationId) {
+  const a = state.applications.find((x) => x.id === applicationId);
+  if (!a) return;
+  a.attendanceStatus = ATTENDANCE.REMOVED_BY_SCHEDULE;
+  refreshStatuses();
+}
+
+function header(user) {
   return `
-    <header class="header card chrome-card">
-      <div class="brand">
-        <div class="brand-top">
-          <span class="stadium-dot">◉</span>
-          <h1>Short Call Web • BC Place Demo</h1>
-        </div>
-        <p>${user.name} • ${user.role.toUpperCase()} • ${user.department}</p>
-      </div>
-      <div class="row">
-        ${user.role === "employee" ? `<button class="button ghost" id="gotoEmployee">Employee View</button>` : ""}
-        ${managerAccess ? `<button class="button ghost" id="gotoManager">Manager/Admin View</button>` : ""}
-        ${scheduleAccess ? `<button class="button ghost" id="gotoSchedule">Schedule Review</button>` : ""}
-        <button class="button ghost" id="logout">Sign Out</button>
-      </div>
-    </header>
-  `;
+  <header class="card">
+    <div>
+      <h1>Short Call Web</h1>
+      <small>${user.name} • ${user.role.toUpperCase()} • ${user.department}</small>
+    </div>
+    <div class="row">
+      ${user.role === "employee" ? `<button class="ghost" id="toEmployee">Employee</button>` : ""}
+      ${["manager","admin"].includes(user.role) ? `<button class="ghost" id="toManager">Manager</button>` : ""}
+      ${["schedule","admin"].includes(user.role) ? `<button class="ghost" id="toSchedule">Schedule</button>` : ""}
+      <button class="ghost" id="logout">Sign out</button>
+    </div>
+  </header>`;
 }
 
-function renderLogin(errorMessage = "") {
-  app.innerHTML = `
-    <main class="container">
-      <section class="card login-card">
-        <div class="hero-symbol">⬡</div>
-        <h1>Short Call Web</h1>
-        <p>Modern end-to-end short-call operations demo for BC Place staffing workflows.</p>
-        <div class="notice" style="margin-bottom: 1rem;">
-          Demo users: employee@shortcall.demo, manager@shortcall.demo, admin@shortcall.demo, schedule@shortcall.demo<br />
-          Password: demo123
-        </div>
-        ${errorMessage ? `<p style="color: var(--danger);">${errorMessage}</p>` : ""}
-        <form id="loginForm" class="grid">
-          <div>
-            <label for="email">Email</label>
-            <input id="email" type="email" required placeholder="name@company.ca" />
-          </div>
-          <div>
-            <label for="password">Password</label>
-            <input id="password" type="password" required placeholder="••••••••" />
-          </div>
-          <button class="button" type="submit">Sign In</button>
-        </form>
-      </section>
-    </main>
-  `;
+function bindCommon(user) {
+  document.getElementById("logout")?.addEventListener("click", () => {
+    localStorage.removeItem("scw_token");
+    renderLogin();
+  });
+  document.getElementById("toEmployee")?.addEventListener("click", renderEmployee);
+  document.getElementById("toManager")?.addEventListener("click", renderManager);
+  document.getElementById("toSchedule")?.addEventListener("click", renderSchedule);
+}
 
-  document.getElementById("loginForm").addEventListener("submit", (event) => {
-    event.preventDefault();
+function renderLogin(error = "") {
+  app.innerHTML = `
+  <main class="container login">
+    <section class="card">
+      <h1>Short Call Web Demo</h1>
+      <p>Sign in with demo users:</p>
+      <p class="notice">employee@shortcall.demo, manager@shortcall.demo, schedule@shortcall.demo, admin@shortcall.demo<br/>password: demo123</p>
+      ${error ? `<p style="color: var(--danger)">${error}</p>` : ""}
+      <form id="loginForm" class="grid">
+        <div><label>Email</label><input id="email" type="email" required></div>
+        <div><label>Password</label><input id="password" type="password" required></div>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+    </section>
+  </main>`;
+
+  document.getElementById("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
     const email = document.getElementById("email").value.trim().toLowerCase();
     const password = document.getElementById("password").value.trim();
-
-    const user = state.users.find((candidate) => candidate.email === email && candidate.password === password);
-    if (!user) {
-      renderLogin("Invalid credentials. Please try again.");
-      return;
-    }
-
-    localStorage.setItem("scw_token", createToken(user));
+    const u = state.users.find((x) => x.email === email && x.password === password);
+    if (!u) return renderLogin("Invalid credentials");
+    localStorage.setItem("scw_token", createToken(u));
     route();
   });
 }
 
-function renderEmployeeDashboard() {
+function renderEmployee() {
   requireAuth(["employee"], (user) => {
-    refreshApplicationStatuses();
+    refreshStatuses();
+    const calls = eligibleCalls(user);
+    const myApps = state.applications.filter((a) => a.userId === user.id);
 
-    const eligibleCalls = eligibleShortCallsForEmployee(user);
-    const userApplications = state.applications.filter((application) => application.userId === user.id);
-    const confirmedCount = userApplications.filter((application) => application.status === "confirmed").length;
-    const pendingCount = userApplications.filter((application) => application.status === "pending").length;
+    app.innerHTML = `<main class="container">
+      ${header(user)}
+      <section class="card">
+        <h2>Eligible approved short-calls</h2>
+        <div class="list">
+          ${calls.map((c) => {
+            const already = myApps.find((a) => a.shortCallId === c.id && a.attendanceStatus !== ATTENDANCE.REMOVED_BY_SCHEDULE);
+            return `<article class="item">
+              <div class="row between"><strong>${c.title}</strong><span class="tag approved">${c.scheduleStatus}</span></div>
+              <small>${c.department} • ${c.shift} • ${c.date} • Seats: ${c.slots}</small>
+              <div class="row" style="margin-top:.45rem"><button class="primary apply" data-id="${c.id}" ${already ? "disabled" : ""}>${already ? "Applied" : "Apply"}</button></div>
+            </article>`;
+          }).join("") || `<p class="notice">No approved calls available for your department filter.</p>`}
+        </div>
+      </section>
 
-    app.innerHTML = `
-      <main class="container">
-        ${renderHeader(user)}
-        <section class="kpi">
-          <article class="item"><small>Eligible Calls</small><strong>${eligibleCalls.length}</strong></article>
-          <article class="item"><small>Pending</small><strong>${pendingCount}</strong></article>
-          <article class="item"><small>Confirmed</small><strong>${confirmedCount}</strong></article>
-        </section>
+      <section class="card" style="margin-top:1rem;">
+        <h2>My applications and attendance</h2>
+        <p class="notice">Employees can report inability to attend. Only Schedule can remove an applicant from a call.</p>
+        <div class="list">
+        ${myApps.map((a) => {
+          const c = state.shortCalls.find((x) => x.id === a.shortCallId);
+          const canReport = a.attendanceStatus === ATTENDANCE.ATTENDING;
+          return `<article class="item">
+            <div class="row between">
+              <strong>${c?.title || "Removed call"}</strong>
+              <span class="tag ${a.status}">${a.status || "pending"}</span>
+            </div>
+            <small>${c?.department || "-"} • ${c?.shift || "-"} • ${c?.date || "-"}</small>
+            <div class="row" style="margin-top:.3rem">
+              <span class="tag ${a.attendanceStatus}">${a.attendanceStatus}</span>
+              ${a.absenceType ? `<span class="tag">absence: ${a.absenceType}</span>` : ""}
+            </div>
+            ${a.absenceNote ? `<small>Note: ${a.absenceNote}</small>` : ""}
+            ${canReport ? `<form class="grid two reportForm" data-id="${a.id}" style="margin-top:.45rem;">
+              <select name="type"><option value="illness">illness</option><option value="no_show">no_show</option><option value="other">other</option></select>
+              <input name="note" placeholder="Optional note for Schedule" />
+              <button class="warn" type="submit">Notify inability to attend</button>
+            </form>` : ""}
+          </article>`;
+        }).join("") || `<p>No applications yet.</p>`}
+        </div>
+      </section>
+    </main>`;
 
-        <section class="grid two" style="margin-top: 1rem;">
-          <article class="card decorated-card">
-            <h3>✦ Open Short Calls</h3>
-            <ul class="list">
-              ${eligibleCalls
-                .map((shortCall) => {
-                  const alreadyApplied = state.applications.some(
-                    (application) => application.shortCallId === shortCall.id && application.userId === user.id
-                  );
+    document.querySelectorAll(".apply").forEach((b) => b.addEventListener("click", () => {
+      applyToCall(b.dataset.id, user.id);
+      renderEmployee();
+    }));
 
-                  return `
-                    <li class="item">
-                      <div class="row">
-                        <strong>${shortCall.title}</strong>
-                        <span class="tag">${shortCall.department}</span>
-                      </div>
-                      <p>Shift: ${shortCall.shift} • Seats: ${shortCall.slots} • Cross-department: ${shortCall.interdepartmentOpen ? "Yes" : "No"}</p>
-                      <p class="meta">Approved by Schedule • Published ${formatDate(shortCall.createdAt)}</p>
-                      <button class="button applyButton" data-id="${shortCall.id}" ${alreadyApplied ? "disabled" : ""}>${
-                    alreadyApplied ? "Already Applied" : "Apply"
-                  }</button>
-                    </li>
-                  `;
-                })
-                .join("")}
-              ${eligibleCalls.length === 0 ? `<li class="notice">No approved short-calls are available for your profile right now.</li>` : ""}
-            </ul>
-          </article>
+    document.querySelectorAll(".reportForm").forEach((f) => f.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = f.dataset.id;
+      reportAbsence(id, f.type.value, f.note.value.trim());
+      renderEmployee();
+    }));
 
-          <article class="card decorated-card">
-            <h3>◆ My Queue Position</h3>
-            <ul class="list">
-              ${userApplications
-                .map((applicationEntry) => {
-                  const shortCall = state.shortCalls.find((item) => item.id === applicationEntry.shortCallId);
-                  if (!shortCall) return "";
-                  const ranking = applicationsForCall(shortCall.id);
-                  const position = ranking.findIndex((item) => item.id === applicationEntry.id) + 1;
-                  const status = getApplicationStatus(position, shortCall.slots);
-                  applicationEntry.status = status;
-
-                  return `
-                    <li class="item">
-                      <div class="row">
-                        <strong>${shortCall.title}</strong>
-                        <span class="tag ${status}">${status}</span>
-                      </div>
-                      <p>Queue spot: #${position} • Timestamp: ${formatDate(applicationEntry.appliedAt)}</p>
-                    </li>
-                  `;
-                })
-                .join("")}
-              ${userApplications.length === 0 ? `<li class="notice">You have no applications yet.</li>` : ""}
-            </ul>
-          </article>
-        </section>
-
-        <p class="footer-note">Demo mode: in-memory state only. Refresh resets data.</p>
-      </main>
-    `;
-
-    document.querySelectorAll(".applyButton").forEach((button) => {
-      button.addEventListener("click", () => {
-        applyToShortCall(button.dataset.id, user.id);
-        renderEmployeeDashboard();
-      });
-    });
-
-    bindCommonActions(user);
+    bindCommon(user);
   });
 }
 
-function renderManagerDashboard() {
+function renderManager() {
   requireAuth(["manager", "admin"], (user) => {
-    const managerVisibleCalls = state.shortCalls.filter((shortCall) => user.role === "admin" || shortCall.createdBy === user.id);
+    const own = state.shortCalls.filter((c) => user.role === "admin" || c.createdBy === user.id);
+    app.innerHTML = `<main class="container">
+      ${header(user)}
+      <section class="card">
+        <h2>Create short-call request (requires Schedule approval)</h2>
+        <form id="createForm" class="grid three">
+          <input id="title" placeholder="Title" required>
+          <select id="dept">${DEPARTMENTS.map((d) => `<option>${d}</option>`).join("")}</select>
+          <select id="shift">${SHIFTS.map((s) => `<option>${s}</option>`).join("")}</select>
+          <input id="date" type="date" value="${plusDays(0)}" required>
+          <input id="slots" type="number" min="1" value="1" required>
+          <select id="open"><option value="false">Department only</option><option value="true">Open cross-department</option></select>
+          <button class="primary" type="submit">Submit to Schedule</button>
+        </form>
+      </section>
+      <section class="card" style="margin-top:1rem">
+        <h3>My created calls</h3>
+        <div class="list">
+          ${own.map((c) => `<article class="item">
+            <div class="row between"><strong>${c.title}</strong><span class="tag ${c.scheduleStatus}">${c.scheduleStatus}</span></div>
+            <small>${c.department} • ${c.shift} • ${c.date} • seats ${c.slots}</small>
+            <small>Schedule notes: ${c.scheduleNotes || "-"}</small>
+          </article>`).join("") || `<p>No calls yet.</p>`}
+        </div>
+      </section>
+    </main>`;
 
-    app.innerHTML = `
-      <main class="container">
-        ${renderHeader(user)}
-
-        <section class="grid two">
-          <article class="card decorated-card">
-            <h3>✚ Create Short Call</h3>
-            <p class="meta">All manager/admin requests require Schedule team approval before publication.</p>
-            <form id="createForm" class="grid">
-              <div>
-                <label for="title">Title</label>
-                <input id="title" required placeholder="Example: Event exit reset support" />
-              </div>
-              <div class="form-grid">
-                <div>
-                  <label for="department">Department</label>
-                  <select id="department">${DEPARTMENTS.map((department) => `<option>${department}</option>`).join("")}</select>
-                </div>
-                <div>
-                  <label for="shift">Shift</label>
-                  <select id="shift">
-                    <option>Morning</option>
-                    <option>Afternoon</option>
-                    <option>Night</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="slots">Seats</label>
-                  <input id="slots" type="number" min="1" value="1" required />
-                </div>
-                <div>
-                  <label for="openAll">Cross-department</label>
-                  <select id="openAll">
-                    <option value="false">No</option>
-                    <option value="true">Yes</option>
-                  </select>
-                </div>
-              </div>
-              <button class="button" type="submit">Submit to Schedule</button>
-            </form>
-          </article>
-
-          <article class="card decorated-card">
-            <h3>◌ Governance Rules</h3>
-            <p>Only manager/admin can create requests. Only Schedule can approve/reject publication frequency across departments.</p>
-            <div class="notice">Official departments: ${DEPARTMENTS.join(", ")}.</div>
-          </article>
-        </section>
-
-        <section class="card" style="margin-top: 1rem;">
-          <h3>Requested Calls & Temporal Ranking</h3>
-          <ul class="list">
-            ${managerVisibleCalls
-              .map((shortCall) => {
-                const ranking = applicationsForCall(shortCall.id);
-                const scheduleReviewer = shortCall.scheduleReviewedBy ? getUserById(shortCall.scheduleReviewedBy)?.name : "Pending";
-
-                return `
-                  <li class="item">
-                    <div class="row">
-                      <strong>${shortCall.title}</strong>
-                      <div class="row">
-                        <span class="tag">${shortCall.department}</span>
-                        <span class="tag schedule ${shortCall.scheduleStatus}">${shortCall.scheduleStatus}</span>
-                      </div>
-                    </div>
-                    <p>Shift: ${shortCall.shift} • Seats: ${shortCall.slots} • Cross-department: ${shortCall.interdepartmentOpen ? "Yes" : "No"}</p>
-                    <p class="meta">Schedule owner: ${scheduleReviewer || "Pending"} • Notes: ${shortCall.scheduleNotes || "-"}</p>
-                    ${
-                      shortCall.scheduleStatus !== SHORT_CALL_STATUSES.APPROVED
-                        ? `<div class="notice">This call is not visible to employees until Schedule approval.</div>`
-                        : ranking.length === 0
-                        ? `<div class="notice">Approved and live. No applications yet.</div>`
-                        : `<ul class="list">${ranking
-                            .map((applicationEntry, index) => {
-                              const applicant = getUserById(applicationEntry.userId);
-                              const status = getApplicationStatus(index + 1, shortCall.slots);
-                              applicationEntry.status = status;
-                              return `<li class="item">#${index + 1} — ${applicant?.name || "Unknown"} (${applicant?.department || "N/A"}) • ${formatDate(
-                                applicationEntry.appliedAt
-                              )} • <span class="tag ${status}">${status}</span></li>`;
-                            })
-                            .join("")}</ul>`
-                    }
-                  </li>
-                `;
-              })
-              .join("")}
-            ${managerVisibleCalls.length === 0 ? `<li class="notice">You have not created any short-calls yet.</li>` : ""}
-          </ul>
-        </section>
-      </main>
-    `;
-
-    document.getElementById("createForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const title = document.getElementById("title").value.trim();
-      const slots = Number(document.getElementById("slots").value);
-      if (!title || Number.isNaN(slots) || slots < 1) return;
-
-      createShortCall(
-        {
-          title,
-          department: document.getElementById("department").value,
-          shift: document.getElementById("shift").value,
-          slots,
-          interdepartmentOpen: document.getElementById("openAll").value === "true",
-        },
-        user.id
-      );
-
-      renderManagerDashboard();
+    document.getElementById("createForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      createShortCall({
+        title: document.getElementById("title").value.trim(),
+        department: document.getElementById("dept").value,
+        shift: document.getElementById("shift").value,
+        date: document.getElementById("date").value,
+        slots: Number(document.getElementById("slots").value),
+        interdepartmentOpen: document.getElementById("open").value === "true",
+      }, user.id);
+      renderManager();
     });
 
-    bindCommonActions(user);
+    bindCommon(user);
   });
 }
 
-function renderScheduleDashboard() {
+function renderSchedule() {
   requireAuth(["schedule", "admin"], (user) => {
-    const pendingCalls = state.shortCalls.filter((shortCall) => shortCall.scheduleStatus === SHORT_CALL_STATUSES.PENDING_SCHEDULE);
+    refreshStatuses();
+    const pending = state.shortCalls.filter((c) => c.scheduleStatus === STATUS.PENDING_SCHEDULE);
+    const approved = state.shortCalls.filter((c) => c.scheduleStatus === STATUS.APPROVED);
+    const absences = state.applications.filter((a) => a.attendanceStatus === ATTENDANCE.REPORTED_ABSENCE);
+    const todayCalls = approved.filter((c) => c.date === plusDays(0));
 
-    app.innerHTML = `
-      <main class="container">
-        ${renderHeader(user)}
+    app.innerHTML = `<main class="container">
+      ${header(user)}
 
-        <section class="kpi">
-          <article class="item"><small>Pending Review</small><strong>${pendingCalls.length}</strong></article>
-          <article class="item"><small>Approved</small><strong>${state.shortCalls.filter((item) => item.scheduleStatus === SHORT_CALL_STATUSES.APPROVED).length}</strong></article>
-          <article class="item"><small>Rejected</small><strong>${state.shortCalls.filter((item) => item.scheduleStatus === SHORT_CALL_STATUSES.REJECTED).length}</strong></article>
-        </section>
+      <section class="kpis">
+        <article class="kpi"><small>Pending approvals</small><strong>${pending.length}</strong></article>
+        <article class="kpi"><small>Approved calls</small><strong>${approved.length}</strong></article>
+        <article class="kpi"><small>Today approved</small><strong>${todayCalls.length}</strong></article>
+        <article class="kpi"><small>Reported absences</small><strong>${absences.length}</strong></article>
+        <article class="kpi"><small>Total applications</small><strong>${state.applications.length}</strong></article>
+      </section>
 
-        <section class="card decorated-card" style="margin-top: 1rem;">
-          <h3>⬢ Schedule Approval Queue</h3>
-          <ul class="list">
-            ${state.shortCalls
-              .map((shortCall) => {
-                const creator = getUserById(shortCall.createdBy);
-                const isPending = shortCall.scheduleStatus === SHORT_CALL_STATUSES.PENDING_SCHEDULE;
-                return `
-                  <li class="item">
-                    <div class="row">
-                      <strong>${shortCall.title}</strong>
-                      <span class="tag schedule ${shortCall.scheduleStatus}">${shortCall.scheduleStatus}</span>
-                    </div>
-                    <p>Requested by: ${creator?.name || "Unknown"} • Department: ${shortCall.department} • Shift: ${shortCall.shift} • Seats: ${shortCall.slots}</p>
-                    <p class="meta">Created: ${formatDate(shortCall.createdAt)} • Notes: ${shortCall.scheduleNotes || "-"}</p>
-                    ${
-                      isPending
-                        ? `<div class="row">
-                            <button class="button approveButton" data-id="${shortCall.id}" data-decision="approved">Approve</button>
-                            <button class="button rejectButton" data-id="${shortCall.id}" data-decision="rejected">Reject</button>
-                          </div>`
-                        : `<div class="notice">Finalized by ${getUserById(shortCall.scheduleReviewedBy)?.name || "Schedule"} on ${formatDate(
-                            shortCall.scheduleReviewedAt || shortCall.createdAt
-                          )}.</div>`
-                    }
-                  </li>
-                `;
-              })
-              .join("")}
-          </ul>
-        </section>
-      </main>
-    `;
+      <section class="card">
+        <h2>Department approval queue (all departments)</h2>
+        <div class="list">
+          ${state.shortCalls.map((c) => {
+            const creator = byId(c.createdBy)?.name || "Unknown";
+            const buttons = c.scheduleStatus === STATUS.PENDING_SCHEDULE ? `<div class="row">
+              <button class="primary approve" data-id="${c.id}" data-d="approved">Approve</button>
+              <button class="danger approve" data-id="${c.id}" data-d="rejected">Reject</button>
+            </div>` : "";
+            return `<article class="item">
+              <div class="row between"><strong>${c.title}</strong><span class="tag ${c.scheduleStatus}">${c.scheduleStatus}</span></div>
+              <small>${c.department} • ${c.shift} • ${c.date} • seats ${c.slots}</small>
+              <small>Requested by ${creator} • ${formatDateTime(c.createdAt)}</small>
+              <small>Schedule notes: ${c.scheduleNotes || "-"}</small>
+              ${buttons}
+            </article>`;
+          }).join("")}
+        </div>
+      </section>
 
-    document.querySelectorAll(".approveButton, .rejectButton").forEach((button) => {
-      button.addEventListener("click", () => {
-        const decision = button.dataset.decision === "approved" ? SHORT_CALL_STATUSES.APPROVED : SHORT_CALL_STATUSES.REJECTED;
-        const note =
-          decision === SHORT_CALL_STATUSES.APPROVED
-            ? "Approved by Schedule for balanced department frequency."
-            : "Rejected by Schedule due to frequency limits in current shift.";
+      <section class="card" style="margin-top:1rem">
+        <h2>Daily operations monitor and filters</h2>
+        <form id="filters" class="grid three">
+          <select id="fDate"><option value="today">Today only</option><option value="all">All dates</option>${[...new Set(approved.map((c) => c.date))].map((d) => `<option value="${d}">${d}</option>`).join("")}</select>
+          <select id="fDept"><option value="all">All departments</option>${DEPARTMENTS.map((d) => `<option>${d}</option>`).join("")}</select>
+          <select id="fShift"><option value="all">All shifts</option>${SHIFTS.map((s) => `<option>${s}</option>`).join("")}</select>
+        </form>
+        <div id="opsList"></div>
+      </section>
 
-        setScheduleDecision(button.dataset.id, decision, user.id, note);
-        renderScheduleDashboard();
+      <section class="card" style="margin-top:1rem">
+        <h2>Future absence and no-show management</h2>
+        <div class="list">
+          ${absences.map((a) => {
+            const c = state.shortCalls.find((x) => x.id === a.shortCallId);
+            const u = byId(a.userId);
+            return `<article class="item">
+              <div class="row between"><strong>${u?.name || "Unknown"}</strong><span class="tag reported_absence">${a.absenceType || "absence"}</span></div>
+              <small>${c?.title || "-"} • ${c?.department || "-"} • ${c?.date || "-"} • ${c?.shift || "-"}</small>
+              <small>Reported: ${a.absenceReportedAt ? formatDateTime(a.absenceReportedAt) : "-"}</small>
+              <small>Note: ${a.absenceNote || "-"}</small>
+              <div class="row"><button class="danger removeApplicant" data-id="${a.id}">Remove from call (Schedule only)</button></div>
+            </article>`;
+          }).join("") || `<p>No reported absences.</p>`}
+        </div>
+      </section>
+    </main>`;
+
+    const renderOps = () => {
+      const fDate = document.getElementById("fDate").value;
+      const fDept = document.getElementById("fDept").value;
+      const fShift = document.getElementById("fShift").value;
+
+      const filtered = approved.filter((c) => {
+        const dateOk = fDate === "all" ? true : (fDate === "today" ? c.date === plusDays(0) : c.date === fDate);
+        const deptOk = fDept === "all" ? true : c.department === fDept;
+        const shiftOk = fShift === "all" ? true : c.shift === fShift;
+        return dateOk && deptOk && shiftOk;
       });
-    });
 
-    bindCommonActions(user);
+      document.getElementById("opsList").innerHTML = `<div class="list">${filtered.map((c) => {
+        const ranking = applicationsForCall(c.id);
+        return `<article class="item">
+          <div class="row between"><strong>${c.title}</strong><span class="tag approved">approved</span></div>
+          <small>${c.department} • ${c.shift} • ${c.date} • seats ${c.slots}</small>
+          <ul>
+            ${ranking.map((a, i) => {
+              const u = byId(a.userId);
+              return `<li>#${i + 1} ${u?.name || "Unknown"} — <span class="tag ${a.status}">${a.status}</span> <span class="tag ${a.attendanceStatus}">${a.attendanceStatus}</span></li>`;
+            }).join("") || `<li>No applicants yet.</li>`}
+          </ul>
+        </article>`;
+      }).join("") || `<p>No calls match the filters.</p>`}</div>`;
+    };
+
+    document.querySelectorAll(".approve").forEach((b) => b.addEventListener("click", () => {
+      const decision = b.dataset.d === "approved" ? STATUS.APPROVED : STATUS.REJECTED;
+      setScheduleDecision(b.dataset.id, decision, user.id, `Schedule ${decision} on ${new Date().toLocaleString("en-CA")}`);
+      renderSchedule();
+    }));
+
+    document.querySelectorAll(".removeApplicant").forEach((b) => b.addEventListener("click", () => {
+      removeBySchedule(b.dataset.id);
+      renderSchedule();
+    }));
+
+    document.getElementById("filters").addEventListener("change", renderOps);
+    renderOps();
+
+    bindCommon(user);
   });
-}
-
-function bindCommonActions(user) {
-  const logoutButton = document.getElementById("logout");
-  if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-      localStorage.removeItem("scw_token");
-      renderLogin();
-    });
-  }
-
-  const employeeButton = document.getElementById("gotoEmployee");
-  if (employeeButton) {
-    employeeButton.addEventListener("click", renderEmployeeDashboard);
-  }
-
-  const managerButton = document.getElementById("gotoManager");
-  if (managerButton) {
-    managerButton.addEventListener("click", renderManagerDashboard);
-  }
-
-  const scheduleButton = document.getElementById("gotoSchedule");
-  if (scheduleButton) {
-    scheduleButton.addEventListener("click", () => {
-      if (user.role === "employee" || user.role === "manager") {
-        renderManagerDashboard();
-      } else {
-        renderScheduleDashboard();
-      }
-    });
-  }
 }
 
 function route() {
   const user = currentUser();
-  if (!user) {
-    renderLogin();
-    return;
-  }
-
-  if (user.role === "employee") {
-    renderEmployeeDashboard();
-    return;
-  }
-
-  if (user.role === "schedule") {
-    renderScheduleDashboard();
-    return;
-  }
-
-  renderManagerDashboard();
+  if (!user) return renderLogin();
+  if (user.role === "employee") return renderEmployee();
+  if (user.role === "schedule") return renderSchedule();
+  if (user.role === "manager") return renderManager();
+  return renderSchedule();
 }
 
 route();
