@@ -32,3 +32,12 @@ Open `http://localhost:4173`.
 ## GitHub Pages note
 
 The repository keeps both root files and a `docs/` mirror (`docs/index.html`, `docs/app.js`, `docs/styles.css`) for compatibility with either GitHub Actions source or branch `/docs` source.
+
+
+## Theme options
+
+The app now supports two colour options selectable from login and authenticated screens:
+- **Blue** theme (default)
+- **White** theme
+
+The BC Place-inspired logo switches automatically to match the selected theme.

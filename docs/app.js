@@ -15,6 +15,37 @@ const ATTENDANCE = {
 
 const app = document.getElementById("app");
 
+const THEME = {
+  BLUE: "blue",
+  WHITE: "white",
+};
+
+function getTheme() {
+  return localStorage.getItem("scw_theme") === THEME.WHITE ? THEME.WHITE : THEME.BLUE;
+}
+function setTheme(theme) {
+  const selected = theme === THEME.WHITE ? THEME.WHITE : THEME.BLUE;
+  localStorage.setItem("scw_theme", selected);
+  document.body.classList.toggle("theme-white", selected === THEME.WHITE);
+}
+function logoForTheme(theme) {
+  return theme === THEME.WHITE ? "assets/logo-white.svg" : "assets/logo-blue.svg";
+}
+function renderThemeControl(selectedTheme) {
+  return `<label>Theme
+    <select id="themeSelect" class="theme-picker">
+      <option value="blue" ${selectedTheme === "blue" ? "selected" : ""}>Blue</option>
+      <option value="white" ${selectedTheme === "white" ? "selected" : ""}>White</option>
+    </select>
+  </label>`;
+}
+function bindThemeControl(onChangeRender) {
+  document.getElementById("themeSelect")?.addEventListener("change", (event) => {
+    setTheme(event.target.value);
+    onChangeRender();
+  });
+}
+
 const today = new Date();
 const iso = (d) => d.toISOString().slice(0, 10);
 const plusDays = (n) => {
@@ -182,13 +213,15 @@ function removeBySchedule(applicationId) {
 }
 
 function header(user) {
+  const theme = getTheme();
   return `
   <header class="card">
-    <div>
-      <h1>Short Call Web</h1>
+    <div class="header-brand">
+      <img class="brand-logo" src="${logoForTheme(theme)}" alt="BC Place inspired logo" />
       <small>${user.name} • ${user.role.toUpperCase()} • ${user.department}</small>
     </div>
     <div class="row">
+      ${renderThemeControl(theme)}
       ${user.role === "employee" ? `<button class="ghost" id="toEmployee">Employee</button>` : ""}
       ${["manager","admin"].includes(user.role) ? `<button class="ghost" id="toManager">Manager</button>` : ""}
       ${["schedule","admin"].includes(user.role) ? `<button class="ghost" id="toSchedule">Schedule</button>` : ""}
@@ -205,13 +238,16 @@ function bindCommon(user) {
   document.getElementById("toEmployee")?.addEventListener("click", renderEmployee);
   document.getElementById("toManager")?.addEventListener("click", renderManager);
   document.getElementById("toSchedule")?.addEventListener("click", renderSchedule);
+  bindThemeControl(route);
 }
 
 function renderLogin(error = "") {
   app.innerHTML = `
   <main class="container login">
     <section class="card">
+      <img class="brand-logo" src="${logoForTheme(getTheme())}" alt="BC Place inspired logo" />
       <h1>Short Call Web Demo</h1>
+      ${renderThemeControl(getTheme())}
       <p>Sign in with demo users:</p>
       <p class="notice">employee@shortcall.demo, manager@shortcall.demo, schedule@shortcall.demo, admin@shortcall.demo<br/>password: demo123</p>
       ${error ? `<p style="color: var(--danger)">${error}</p>` : ""}
@@ -223,6 +259,8 @@ function renderLogin(error = "") {
     </section>
   </main>`;
 
+  bindThemeControl(() => renderLogin(error));
+
   document.getElementById("loginForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const email = document.getElementById("email").value.trim().toLowerCase();
@@ -230,6 +268,7 @@ function renderLogin(error = "") {
     const u = state.users.find((x) => x.email === email && x.password === password);
     if (!u) return renderLogin("Invalid credentials");
     localStorage.setItem("scw_token", createToken(u));
+    setTheme(getTheme());
     route();
   });
 }
@@ -468,4 +507,5 @@ function route() {
   return renderSchedule();
 }
 
+setTheme(getTheme());
 route();

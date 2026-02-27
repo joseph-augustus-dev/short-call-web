@@ -1,7 +1,6 @@
 :root {
   --bg: #061a2a;
-  --panel: #0e2a40;
-  --panel-2: #143754;
+  --accent-bg: #184d76;
   --accent: #00a9e0;
   --accent-2: #5bc8ff;
   --text: #e8f4fb;
@@ -12,11 +11,24 @@
   --border: rgba(255, 255, 255, 0.12);
 }
 
+body.theme-white {
+  --bg: #f4f9fd;
+  --accent-bg: #d9ebf7;
+  --accent: #0a6aa4;
+  --accent-2: #4ba3d4;
+  --text: #163347;
+  --muted: #36586f;
+  --ok: #168a4f;
+  --warn: #a37600;
+  --danger: #b0293b;
+  --border: rgba(6, 38, 62, 0.22);
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
-  background: radial-gradient(circle at 10% 5%, #184d76 0, transparent 30%), var(--bg);
+  background: radial-gradient(circle at 10% 5%, var(--accent-bg) 0, transparent 30%), var(--bg);
   color: var(--text);
 }
 
@@ -40,6 +52,10 @@ header.card {
 h1,h2,h3 { margin: 0 0 0.65rem; }
 p,li,small,label { color: var(--muted); }
 
+.brand-logo { width: 170px; max-width: 45vw; height: auto; display: block; margin-bottom: .35rem; }
+.header-brand { display:flex; flex-direction:column; }
+.theme-picker { min-width: 180px; }
+
 .grid { display: grid; gap: 0.8rem; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -55,6 +71,7 @@ input,select,textarea,button {
 
 button { cursor: pointer; font-weight: 600; }
 button.primary { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #032033; border: none; }
+body.theme-white button.primary { color: #f3fbff; }
 button.ghost { background: rgba(255,255,255,0.04); }
 button.warn { background: rgba(255, 203, 61, 0.18); }
 button.danger { background: rgba(255, 111, 125, 0.2); }
