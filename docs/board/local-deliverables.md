@@ -27,3 +27,8 @@ python3 -m http.server 4173
 - Works immediately in your local machine.
 - No extra dependency required.
 - Easy to revise before final board meeting.
+
+
+## Legal notice
+
+These materials are part of an unofficial demo created by an enthusiastic Computer Engineering professional, not affiliated with BC Place. BC Place names/logos/copyrights remain with their respective owners.

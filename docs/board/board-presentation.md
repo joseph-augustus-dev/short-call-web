@@ -101,3 +101,8 @@ Approve:
 # Thank you
 
 Questions and decision discussion.
+
+
+## Legal notice
+
+These materials are part of an unofficial demo created by an enthusiastic Computer Engineering professional, not affiliated with BC Place. BC Place names/logos/copyrights remain with their respective owners.

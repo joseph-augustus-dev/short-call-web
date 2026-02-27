@@ -29,6 +29,13 @@ python3 -m http.server 4173
 
 Open `http://localhost:4173`.
 
+## Legal notice
+
+This project is an **unofficial demonstration** created by an enthusiastic Computer Engineering professional.
+
+- It is **not affiliated** with BC Place.
+- BC Place names, logos, and related copyrights/trademarks belong to their respective owners.
+
 ## GitHub Pages note
 
 The repository keeps both root files and a `docs/` mirror (`docs/index.html`, `docs/app.js`, `docs/styles.css`) for compatibility with either GitHub Actions source or branch `/docs` source.

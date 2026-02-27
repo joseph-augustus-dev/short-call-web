@@ -158,3 +158,8 @@ Approval is requested for:
 - **Schedule gate:** mandatory approval step before publication.
 - **Queue position:** rank derived from application timestamp.
 - **Cross-department:** call open beyond the origin department.
+
+
+## Legal notice
+
+These materials are part of an unofficial demo created by an enthusiastic Computer Engineering professional, not affiliated with BC Place. BC Place names/logos/copyrights remain with their respective owners.

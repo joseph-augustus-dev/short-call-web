@@ -99,3 +99,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .grid.two,.grid.three,.kpis { grid-template-columns: 1fr; }
   header.card { flex-direction: column; align-items: flex-start; }
 }
+
+
+.legal-note {
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+  border-left: 3px solid var(--warn);
+  padding-left: 0.55rem;
+}

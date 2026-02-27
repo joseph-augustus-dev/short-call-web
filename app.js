@@ -15,6 +15,8 @@ const ATTENDANCE = {
 
 const app = document.getElementById("app");
 
+const LEGAL_NOTICE = "Unofficial demo created by an enthusiastic Computer Engineering professional. This project is not affiliated with BC Place. BC Place names, logos, and copyrights/trademarks belong to their respective owners.";
+
 const THEME = {
   BLUE: "blue",
   WHITE: "white",
@@ -44,6 +46,10 @@ function bindThemeControl(onChangeRender) {
     setTheme(event.target.value);
     onChangeRender();
   });
+}
+
+function renderLegalNotice() {
+  return `<p class="legal-note">${LEGAL_NOTICE}</p>`;
 }
 
 const today = new Date();
@@ -111,7 +117,7 @@ function requireAuth(roles, cb) {
   const user = currentUser();
   if (!user) return renderLogin();
   if (roles.length && !roles.includes(user.role)) {
-    app.innerHTML = `<main class="container"><section class="card"><h2>Access denied</h2></section></main>`;
+    app.innerHTML = `<main class="container"><section class="card"><h2>Access denied</h2>${renderLegalNotice()}</section></main>`;
     return;
   }
   cb(user);
@@ -249,6 +255,7 @@ function renderLogin(error = "") {
       <h1>Short Call Web Demo</h1>
       ${renderThemeControl(getTheme())}
       <p>Sign in with demo users:</p>
+      ${renderLegalNotice()}
       <p class="notice">employee@shortcall.demo, manager@shortcall.demo, schedule@shortcall.demo, admin@shortcall.demo<br/>password: demo123</p>
       ${error ? `<p style="color: var(--danger)">${error}</p>` : ""}
       <form id="loginForm" class="grid">
@@ -322,6 +329,7 @@ function renderEmployee() {
         }).join("") || `<p>No applications yet.</p>`}
         </div>
       </section>
+      ${renderLegalNotice()}
     </main>`;
 
     document.querySelectorAll(".apply").forEach((b) => b.addEventListener("click", () => {
@@ -367,6 +375,7 @@ function renderManager() {
           </article>`).join("") || `<p>No calls yet.</p>`}
         </div>
       </section>
+      ${renderLegalNotice()}
     </main>`;
 
     document.getElementById("createForm").addEventListener("submit", (e) => {
@@ -451,6 +460,7 @@ function renderSchedule() {
           }).join("") || `<p>No reported absences.</p>`}
         </div>
       </section>
+      ${renderLegalNotice()}
     </main>`;
 
     const renderOps = () => {

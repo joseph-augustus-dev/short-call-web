@@ -34,3 +34,8 @@ If you prefer generated binary files from markdown:
 - Deck PPTX/PDF via `marp`
 
 (see command examples in previous revisions if those tools are installed.)
+
+
+## Legal notice
+
+These materials are part of an unofficial demo created by an enthusiastic Computer Engineering professional, not affiliated with BC Place. BC Place names/logos/copyrights remain with their respective owners.
