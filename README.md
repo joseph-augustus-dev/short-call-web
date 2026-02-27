@@ -77,6 +77,19 @@ Deployment is configured via GitHub Actions in `.github/workflows/pages.yml`.
 3. Generates `404.html` as a fallback copy of `index.html`.
 4. Publishes to the `github-pages` environment.
 
+
+### Source compatibility (important)
+
+This repository now publishes the app from **both locations**:
+- repo root (`index.html`, `app.js`, `styles.css`) for GitHub Actions-based Pages deploy;
+- `docs/` mirror (`docs/index.html`, `docs/app.js`, `docs/styles.css`) for branch-based Pages deploy (`main` + `/docs`).
+
+If your Pages settings are still using **Deploy from a branch**, choose:
+- Branch: `main`
+- Folder: `/docs`
+
+This prevents serving an older version when GitHub is deploying with `pages-build-deployment` instead of the Actions workflow.
+
 ### Publish steps
 
 1. Push the repository to GitHub.
