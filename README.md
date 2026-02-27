@@ -1,31 +1,34 @@
 # Short Call Web (Demo)
 
-Plataforma web de demonstração para gestão de **short-calls** (chamadas rápidas de escala), com foco em baixo atrito operacional.
+Short Call Web is a public demonstration platform for managing fast staffing calls across operational departments, designed for low-friction adoption and end-to-end process visibility.
 
-## Objetivo de negócio
+## Business intent
 
-Demonstrar um fluxo ponta a ponta para operações com demanda variável por turno:
+In operations with variable shift demand, teams need to:
 
-- publicação rápida de short-calls;
-- candidatura de colaboradores elegíveis;
-- fila temporal transparente;
-- visibilidade de status (`pending`, `confirmed`, `waitlisted`);
-- governança por perfil (`employee`, `manager`, `admin`).
+- publish short-calls quickly;
+- allow eligible employees to apply;
+- maintain a transparent time-based queue;
+- monitor application status (`pending`, `confirmed`, `waitlisted`);
+- enforce governance by role (`employee`, `manager`, `admin`, `schedule`).
 
-## Escopo funcional implementado
+## Current functional scope
 
-- **Autenticação de demonstração** via email/senha, com trilha preparada para SSO corporativo.
-- **Controle de acesso por perfil** com middleware central (`requireAuth`) validando sessão e permissões.
-- **Fluxo do colaborador (employee):**
-  - visualização de short-calls elegíveis;
-  - candidatura em um clique;
-  - posição de fila por timestamp;
-  - consulta de status por posição.
-- **Fluxo de gestão (manager/admin):**
-  - criação de short-calls;
-  - abertura interdepartamental;
-  - ranking temporal de candidatos.
-- **Regras organizacionais explícitas:** departamentos fixos no domínio:
+- **Demo authentication** using email/password, with architecture ready for future corporate SSO integration.
+- **Role-based access control** through a central `requireAuth` middleware.
+- **Employee workflow**:
+  - view eligible short-calls;
+  - apply to approved short-calls;
+  - review queue position by timestamp;
+  - track personal status.
+- **Manager/Admin workflow**:
+  - create short-call requests;
+  - define cross-department openness;
+  - review ranking and publication state.
+- **Schedule workflow (approval gate)**:
+  - approve or reject every created short-call request;
+  - enforce frequency and department balancing before publication.
+- **Explicit organization rules** with fixed departments:
   - EVS
   - Security
   - Host
@@ -34,49 +37,59 @@ Demonstrar um fluxo ponta a ponta para operações com demanda variável por tur
   - Maintenance
   - Administration
 
-## Tecnologias
+## Design direction
 
-- HTML, CSS e JavaScript puros (sem backend e sem banco de dados).
-- Estado em memória (reinicia ao recarregar a página).
+The interface follows a modern visual style inspired by BC Place Stadium colours:
 
-## Usuários demo
+- deep midnight blue foundations;
+- bright stadium azure accents;
+- clean silver/ice highlights;
+- symbolic shapes (◉, ✦, ◆, ⬢) for a stronger visual identity.
+
+## Technology stack
+
+- HTML, CSS, and vanilla JavaScript.
+- In-memory data for demo speed (refresh resets state).
+
+## Demo users
 
 - `employee@shortcall.demo` / `demo123`
 - `manager@shortcall.demo` / `demo123`
 - `admin@shortcall.demo` / `demo123`
+- `schedule@shortcall.demo` / `demo123`
 
-## Execução local
+## Run locally
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Depois acesse `http://localhost:4173`.
+Open `http://localhost:4173`.
 
-## Deploy no GitHub Pages
+## GitHub Pages deployment
 
-O deploy foi configurado via GitHub Actions em `.github/workflows/pages.yml`.
+Deployment is configured via GitHub Actions in `.github/workflows/pages.yml`.
 
-### O que o workflow faz
+### Workflow behaviour
 
-1. Dispara em push para `main` ou `master` e também manualmente (`workflow_dispatch`).
-2. Monta um artefato estático (`dist/`) com:
+1. Runs on push to `main` or `master`, and on manual dispatch.
+2. Builds a static `dist/` artifact with:
    - `index.html`
    - `app.js`
    - `styles.css`
-   - `404.html` (cópia do `index.html` para fallback de rota)
-3. Publica automaticamente no ambiente `github-pages`.
+   - `404.html` (fallback copy of `index.html`)
+3. Publishes to the `github-pages` environment.
 
-### Como publicar
+### Publish steps
 
-1. Faça push do repositório para o GitHub.
-2. Em **Settings → Pages**, selecione **GitHub Actions** como source.
-3. Faça merge/push na branch `main` (ou `master`).
-4. Acompanhe o job em **Actions → Deploy Short Call Web Demo**.
-5. A URL pública final aparece no step `Deploy to GitHub Pages`.
+1. Push the repository to GitHub.
+2. In **Settings → Pages**, select **GitHub Actions** as the source.
+3. Push/merge to `main` (or `master`).
+4. Monitor **Actions → Deploy Short Call Web Demo**.
+5. Copy the final live URL from the `Deploy to GitHub Pages` step.
 
-## Evolução futura
+## Future roadmap
 
-- Persistência MySQL para produção.
-- Integração SSO Dayforce.
-- APIs server-side com trilha de auditoria e observabilidade.
+- MySQL persistence for production workloads.
+- Dayforce SSO integration.
+- Server-side APIs with audit trail and operational observability.

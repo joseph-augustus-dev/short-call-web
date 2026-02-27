@@ -8,32 +8,47 @@ const DEPARTMENTS = [
   "Administration",
 ];
 
+const SHORT_CALL_STATUSES = {
+  PENDING_SCHEDULE: "pending_schedule",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+};
+
 const state = {
   users: [
-    { id: "u1", name: "Ana EVS", email: "employee@shortcall.demo", password: "demo123", role: "employee", department: "EVS" },
-    { id: "u2", name: "Bruno Manager", email: "manager@shortcall.demo", password: "demo123", role: "manager", department: "Operations" },
-    { id: "u3", name: "Clara Admin", email: "admin@shortcall.demo", password: "demo123", role: "admin", department: "Administration" },
+    { id: "u1", name: "Avery EVS", email: "employee@shortcall.demo", password: "demo123", role: "employee", department: "EVS" },
+    { id: "u2", name: "Jordan Manager", email: "manager@shortcall.demo", password: "demo123", role: "manager", department: "Operations" },
+    { id: "u3", name: "Taylor Admin", email: "admin@shortcall.demo", password: "demo123", role: "admin", department: "Administration" },
+    { id: "u4", name: "Morgan Schedule", email: "schedule@shortcall.demo", password: "demo123", role: "schedule", department: "Administration" },
   ],
   shortCalls: [
     {
       id: crypto.randomUUID(),
-      title: "Reforço limpeza pós-evento",
+      title: "Post-event EVS reset",
       department: "EVS",
-      shift: "Noite",
+      shift: "Night",
       slots: 2,
       interdepartmentOpen: false,
       createdBy: "u2",
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(Date.now() - 3600_000).toISOString(),
+      scheduleStatus: SHORT_CALL_STATUSES.APPROVED,
+      scheduleReviewedBy: "u4",
+      scheduleReviewedAt: new Date(Date.now() - 1800_000).toISOString(),
+      scheduleNotes: "Approved for tonight due to peak foot traffic.",
     },
     {
       id: crypto.randomUUID(),
-      title: "Apoio segurança portão B",
+      title: "Gate B security support",
       department: "Security",
-      shift: "Tarde",
+      shift: "Afternoon",
       slots: 1,
       interdepartmentOpen: true,
       createdBy: "u3",
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(Date.now() - 2400_000).toISOString(),
+      scheduleStatus: SHORT_CALL_STATUSES.PENDING_SCHEDULE,
+      scheduleReviewedBy: null,
+      scheduleReviewedAt: null,
+      scheduleNotes: "",
     },
   ],
   applications: [],
@@ -57,71 +72,169 @@ function currentUser() {
   const token = localStorage.getItem("scw_token");
   const payload = token && parseToken(token);
   if (!payload) return null;
-  return state.users.find((u) => u.id === payload.id) || null;
+  return state.users.find((user) => user.id === payload.id) || null;
 }
 
 function requireAuth(allowedRoles, renderer) {
   const user = currentUser();
   if (!user) {
-    renderLogin("Sessão expirada. Faça login para continuar.");
+    renderLogin("Your session has ended. Please sign in again.");
     return;
   }
+
   if (allowedRoles.length && !allowedRoles.includes(user.role)) {
-    app.innerHTML = `<div class="container"><div class="card"><h2>Acesso negado</h2><p>Seu perfil não possui permissão para este fluxo.</p></div></div>`;
+    app.innerHTML = `
+      <main class="container">
+        <section class="card">
+          <h2>Access denied</h2>
+          <p>Your role does not have permission to open this workflow.</p>
+        </section>
+      </main>
+    `;
     return;
   }
+
   renderer(user);
 }
 
-function eligibleCallsFor(user) {
-  return state.shortCalls.filter((call) => call.interdepartmentOpen || call.department === user.department);
+function getUserById(userId) {
+  return state.users.find((user) => user.id === userId);
 }
 
-function applicationsForCall(callId) {
+function formatDate(dateValue) {
+  return new Date(dateValue).toLocaleString("en-CA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function applicationsForCall(shortCallId) {
   return state.applications
-    .filter((a) => a.shortCallId === callId)
-    .sort((a, b) => new Date(a.appliedAt) - new Date(b.appliedAt));
+    .filter((application) => application.shortCallId === shortCallId)
+    .sort((first, second) => new Date(first.appliedAt) - new Date(second.appliedAt));
 }
 
-function getStatusForPosition(pos, slots) {
-  if (pos <= slots) return "confirmed";
-  if (pos <= slots + 2) return "pending";
+function getApplicationStatus(position, slots) {
+  if (position <= slots) return "confirmed";
+  if (position <= slots + 2) return "pending";
   return "waitlisted";
 }
 
-function applyToCall(callId, userId) {
-  const alreadyApplied = state.applications.some((a) => a.shortCallId === callId && a.userId === userId);
+function refreshApplicationStatuses() {
+  state.shortCalls.forEach((shortCall) => {
+    const ranking = applicationsForCall(shortCall.id);
+    ranking.forEach((applicationEntry, index) => {
+      applicationEntry.status = getApplicationStatus(index + 1, shortCall.slots);
+    });
+  });
+}
+
+function eligibleShortCallsForEmployee(user) {
+  return state.shortCalls.filter(
+    (shortCall) =>
+      shortCall.scheduleStatus === SHORT_CALL_STATUSES.APPROVED &&
+      (shortCall.interdepartmentOpen || shortCall.department === user.department)
+  );
+}
+
+function createShortCall(payload, creatorId) {
+  state.shortCalls.unshift({
+    id: crypto.randomUUID(),
+    ...payload,
+    createdBy: creatorId,
+    createdAt: new Date().toISOString(),
+    scheduleStatus: SHORT_CALL_STATUSES.PENDING_SCHEDULE,
+    scheduleReviewedBy: null,
+    scheduleReviewedAt: null,
+    scheduleNotes: "Awaiting Schedule team review.",
+  });
+}
+
+function setScheduleDecision(shortCallId, decisionStatus, reviewerId, scheduleNotes) {
+  const shortCall = state.shortCalls.find((item) => item.id === shortCallId);
+  if (!shortCall) return;
+
+  shortCall.scheduleStatus = decisionStatus;
+  shortCall.scheduleReviewedBy = reviewerId;
+  shortCall.scheduleReviewedAt = new Date().toISOString();
+  shortCall.scheduleNotes = scheduleNotes || (decisionStatus === SHORT_CALL_STATUSES.APPROVED ? "Approved by Schedule team." : "Rejected by Schedule team.");
+
+  if (decisionStatus === SHORT_CALL_STATUSES.REJECTED) {
+    state.applications = state.applications.filter((application) => application.shortCallId !== shortCallId);
+  }
+
+  refreshApplicationStatuses();
+}
+
+function applyToShortCall(shortCallId, userId) {
+  const shortCall = state.shortCalls.find((item) => item.id === shortCallId);
+  if (!shortCall || shortCall.scheduleStatus !== SHORT_CALL_STATUSES.APPROVED) return;
+
+  const alreadyApplied = state.applications.some(
+    (application) => application.shortCallId === shortCallId && application.userId === userId
+  );
+
   if (alreadyApplied) return;
 
   state.applications.push({
     id: crypto.randomUUID(),
-    shortCallId: callId,
+    shortCallId,
     userId,
     appliedAt: new Date().toISOString(),
     status: "pending",
   });
+
+  refreshApplicationStatuses();
+}
+
+function renderHeader(user) {
+  const managerAccess = user.role === "manager" || user.role === "admin";
+  const scheduleAccess = user.role === "schedule" || user.role === "admin";
+
+  return `
+    <header class="header card chrome-card">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="stadium-dot">◉</span>
+          <h1>Short Call Web • BC Place Demo</h1>
+        </div>
+        <p>${user.name} • ${user.role.toUpperCase()} • ${user.department}</p>
+      </div>
+      <div class="row">
+        ${user.role === "employee" ? `<button class="button ghost" id="gotoEmployee">Employee View</button>` : ""}
+        ${managerAccess ? `<button class="button ghost" id="gotoManager">Manager/Admin View</button>` : ""}
+        ${scheduleAccess ? `<button class="button ghost" id="gotoSchedule">Schedule Review</button>` : ""}
+        <button class="button ghost" id="logout">Sign Out</button>
+      </div>
+    </header>
+  `;
 }
 
 function renderLogin(errorMessage = "") {
   app.innerHTML = `
     <main class="container">
-      <section class="card" style="max-width: 460px; margin: 10vh auto 0;">
+      <section class="card login-card">
+        <div class="hero-symbol">⬡</div>
         <h1>Short Call Web</h1>
-        <p>Demo pública para gestão de short-calls em fluxo ponta a ponta.</p>
+        <p>Modern end-to-end short-call operations demo for BC Place staffing workflows.</p>
         <div class="notice" style="margin-bottom: 1rem;">
-          Usuários demo: employee@shortcall.demo, manager@shortcall.demo, admin@shortcall.demo<br/>Senha: demo123
+          Demo users: employee@shortcall.demo, manager@shortcall.demo, admin@shortcall.demo, schedule@shortcall.demo<br />
+          Password: demo123
         </div>
         ${errorMessage ? `<p style="color: var(--danger);">${errorMessage}</p>` : ""}
         <form id="loginForm" class="grid">
           <div>
             <label for="email">Email</label>
-            <input id="email" type="email" required placeholder="seu.email@empresa.com" />
+            <input id="email" type="email" required placeholder="name@company.ca" />
           </div>
           <div>
-            <label for="password">Senha</label>
-            <input id="password" type="password" required placeholder="********" />
+            <label for="password">Password</label>
+            <input id="password" type="password" required placeholder="••••••••" />
           </div>
-          <button class="button" type="submit">Entrar</button>
+          <button class="button" type="submit">Sign In</button>
         </form>
       </section>
     </main>
@@ -131,10 +244,10 @@ function renderLogin(errorMessage = "") {
     event.preventDefault();
     const email = document.getElementById("email").value.trim().toLowerCase();
     const password = document.getElementById("password").value.trim();
-    const user = state.users.find((u) => u.email === email && u.password === password);
 
+    const user = state.users.find((candidate) => candidate.email === email && candidate.password === password);
     if (!user) {
-      renderLogin("Credenciais inválidas. Tente novamente.");
+      renderLogin("Invalid credentials. Please try again.");
       return;
     }
 
@@ -143,93 +256,88 @@ function renderLogin(errorMessage = "") {
   });
 }
 
-function renderHeader(user) {
-  return `
-    <header class="header">
-      <div class="brand">
-        <h1>Short Call Web</h1>
-        <p>${user.name} • ${user.role.toUpperCase()} • ${user.department}</p>
-      </div>
-      <div class="row">
-        ${user.role === "employee" ? `<button class="button ghost" id="gotoEmployee">Meu fluxo</button>` : ""}
-        ${user.role !== "employee" ? `<button class="button ghost" id="gotoManager">Gestão</button>` : ""}
-        <button class="button ghost" id="logout">Sair</button>
-      </div>
-    </header>
-  `;
-}
-
 function renderEmployeeDashboard() {
   requireAuth(["employee"], (user) => {
-    const eligible = eligibleCallsFor(user);
-    const myApps = state.applications.filter((a) => a.userId === user.id);
+    refreshApplicationStatuses();
 
-    const totalConfirmed = myApps.filter((a) => a.status === "confirmed").length;
-    const totalPending = myApps.filter((a) => a.status === "pending").length;
+    const eligibleCalls = eligibleShortCallsForEmployee(user);
+    const userApplications = state.applications.filter((application) => application.userId === user.id);
+    const confirmedCount = userApplications.filter((application) => application.status === "confirmed").length;
+    const pendingCount = userApplications.filter((application) => application.status === "pending").length;
 
     app.innerHTML = `
       <main class="container">
         ${renderHeader(user)}
         <section class="kpi">
-          <article class="item"><small>Elegíveis</small><strong>${eligible.length}</strong></article>
-          <article class="item"><small>Pending</small><strong>${totalPending}</strong></article>
-          <article class="item"><small>Confirmed</small><strong>${totalConfirmed}</strong></article>
+          <article class="item"><small>Eligible Calls</small><strong>${eligibleCalls.length}</strong></article>
+          <article class="item"><small>Pending</small><strong>${pendingCount}</strong></article>
+          <article class="item"><small>Confirmed</small><strong>${confirmedCount}</strong></article>
         </section>
 
         <section class="grid two" style="margin-top: 1rem;">
-          <article class="card">
-            <h3>Short-calls elegíveis</h3>
+          <article class="card decorated-card">
+            <h3>✦ Open Short Calls</h3>
             <ul class="list">
-              ${eligible
-                .map((call) => {
-                  const already = state.applications.some((a) => a.shortCallId === call.id && a.userId === user.id);
-                  return `
-                  <li class="item">
-                    <div class="row">
-                      <strong>${call.title}</strong>
-                      <span class="tag">${call.department}</span>
-                    </div>
-                    <p>Turno: ${call.shift} • Vagas: ${call.slots} • Aberto interdepartamental: ${call.interdepartmentOpen ? "Sim" : "Não"}</p>
-                    <button class="button applyBtn" data-id="${call.id}" ${already ? "disabled" : ""}>${already ? "Já aplicado" : "Aplicar"}</button>
-                  </li>`;
-                })
-                .join("")}
-            </ul>
-          </article>
+              ${eligibleCalls
+                .map((shortCall) => {
+                  const alreadyApplied = state.applications.some(
+                    (application) => application.shortCallId === shortCall.id && application.userId === user.id
+                  );
 
-          <article class="card">
-            <h3>Minhas candidaturas</h3>
-            <ul class="list">
-              ${myApps.length === 0 ? `<li class="notice">Nenhuma candidatura até o momento.</li>` : ""}
-              ${myApps
-                .map((appEntry) => {
-                  const call = state.shortCalls.find((c) => c.id === appEntry.shortCallId);
-                  const ranking = applicationsForCall(call.id);
-                  const pos = ranking.findIndex((item) => item.id === appEntry.id) + 1;
-                  const status = getStatusForPosition(pos, call.slots);
-                  appEntry.status = status;
                   return `
                     <li class="item">
                       <div class="row">
-                        <strong>${call.title}</strong>
-                        <span class="tag ${status}">${status}</span>
+                        <strong>${shortCall.title}</strong>
+                        <span class="tag">${shortCall.department}</span>
                       </div>
-                      <p>Posição na fila: #${pos} • Timestamp: ${new Date(appEntry.appliedAt).toLocaleString("pt-BR")}</p>
+                      <p>Shift: ${shortCall.shift} • Seats: ${shortCall.slots} • Cross-department: ${shortCall.interdepartmentOpen ? "Yes" : "No"}</p>
+                      <p class="meta">Approved by Schedule • Published ${formatDate(shortCall.createdAt)}</p>
+                      <button class="button applyButton" data-id="${shortCall.id}" ${alreadyApplied ? "disabled" : ""}>${
+                    alreadyApplied ? "Already Applied" : "Apply"
+                  }</button>
                     </li>
                   `;
                 })
                 .join("")}
+              ${eligibleCalls.length === 0 ? `<li class="notice">No approved short-calls are available for your profile right now.</li>` : ""}
+            </ul>
+          </article>
+
+          <article class="card decorated-card">
+            <h3>◆ My Queue Position</h3>
+            <ul class="list">
+              ${userApplications
+                .map((applicationEntry) => {
+                  const shortCall = state.shortCalls.find((item) => item.id === applicationEntry.shortCallId);
+                  if (!shortCall) return "";
+                  const ranking = applicationsForCall(shortCall.id);
+                  const position = ranking.findIndex((item) => item.id === applicationEntry.id) + 1;
+                  const status = getApplicationStatus(position, shortCall.slots);
+                  applicationEntry.status = status;
+
+                  return `
+                    <li class="item">
+                      <div class="row">
+                        <strong>${shortCall.title}</strong>
+                        <span class="tag ${status}">${status}</span>
+                      </div>
+                      <p>Queue spot: #${position} • Timestamp: ${formatDate(applicationEntry.appliedAt)}</p>
+                    </li>
+                  `;
+                })
+                .join("")}
+              ${userApplications.length === 0 ? `<li class="notice">You have no applications yet.</li>` : ""}
             </ul>
           </article>
         </section>
 
-        <p class="footer-note">Modo demo sem banco de dados: informações em memória e reset ao recarregar.</p>
+        <p class="footer-note">Demo mode: in-memory state only. Refresh resets data.</p>
       </main>
     `;
 
-    document.querySelectorAll(".applyBtn").forEach((button) => {
+    document.querySelectorAll(".applyButton").forEach((button) => {
       button.addEventListener("click", () => {
-        applyToCall(button.dataset.id, user.id);
+        applyToShortCall(button.dataset.id, user.id);
         renderEmployeeDashboard();
       });
     });
@@ -240,78 +348,164 @@ function renderEmployeeDashboard() {
 
 function renderManagerDashboard() {
   requireAuth(["manager", "admin"], (user) => {
+    const managerVisibleCalls = state.shortCalls.filter((shortCall) => user.role === "admin" || shortCall.createdBy === user.id);
+
     app.innerHTML = `
       <main class="container">
         ${renderHeader(user)}
+
         <section class="grid two">
-          <article class="card">
-            <h3>Criar short-call</h3>
+          <article class="card decorated-card">
+            <h3>✚ Create Short Call</h3>
+            <p class="meta">All manager/admin requests require Schedule team approval before publication.</p>
             <form id="createForm" class="grid">
               <div>
-                <label for="title">Título</label>
-                <input id="title" required placeholder="Ex.: Cobertura operação noturna" />
+                <label for="title">Title</label>
+                <input id="title" required placeholder="Example: Event exit reset support" />
               </div>
               <div class="form-grid">
                 <div>
-                  <label for="department">Departamento</label>
-                  <select id="department">${DEPARTMENTS.map((d) => `<option>${d}</option>`).join("")}</select>
+                  <label for="department">Department</label>
+                  <select id="department">${DEPARTMENTS.map((department) => `<option>${department}</option>`).join("")}</select>
                 </div>
                 <div>
-                  <label for="shift">Turno</label>
+                  <label for="shift">Shift</label>
                   <select id="shift">
-                    <option>Manhã</option>
-                    <option>Tarde</option>
-                    <option>Noite</option>
+                    <option>Morning</option>
+                    <option>Afternoon</option>
+                    <option>Night</option>
                   </select>
                 </div>
                 <div>
-                  <label for="slots">Vagas</label>
-                  <input id="slots" type="number" min="1" value="1" />
+                  <label for="slots">Seats</label>
+                  <input id="slots" type="number" min="1" value="1" required />
                 </div>
                 <div>
-                  <label for="openAll">Abertura interdepartamental</label>
-                  <select id="openAll"><option value="false">Não</option><option value="true">Sim</option></select>
+                  <label for="openAll">Cross-department</label>
+                  <select id="openAll">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                  </select>
                 </div>
               </div>
-              <button class="button" type="submit">Publicar</button>
+              <button class="button" type="submit">Submit to Schedule</button>
             </form>
           </article>
 
-          <article class="card">
-            <h3>Governança e regras</h3>
-            <p>Somente perfis manager/admin podem publicar short-calls e abrir chamadas para múltiplos departamentos.</p>
-            <div class="notice">
-              Departamentos oficiais: ${DEPARTMENTS.join(", ")}.
-            </div>
+          <article class="card decorated-card">
+            <h3>◌ Governance Rules</h3>
+            <p>Only manager/admin can create requests. Only Schedule can approve/reject publication frequency across departments.</p>
+            <div class="notice">Official departments: ${DEPARTMENTS.join(", ")}.</div>
           </article>
         </section>
 
         <section class="card" style="margin-top: 1rem;">
-          <h3>Ranking temporal de candidaturas</h3>
+          <h3>Requested Calls & Temporal Ranking</h3>
           <ul class="list">
-            ${state.shortCalls
-              .map((call) => {
-                const ranking = applicationsForCall(call.id);
+            ${managerVisibleCalls
+              .map((shortCall) => {
+                const ranking = applicationsForCall(shortCall.id);
+                const scheduleReviewer = shortCall.scheduleReviewedBy ? getUserById(shortCall.scheduleReviewedBy)?.name : "Pending";
+
                 return `
                   <li class="item">
                     <div class="row">
-                      <strong>${call.title}</strong>
-                      <span class="tag">${call.department}</span>
+                      <strong>${shortCall.title}</strong>
+                      <div class="row">
+                        <span class="tag">${shortCall.department}</span>
+                        <span class="tag schedule ${shortCall.scheduleStatus}">${shortCall.scheduleStatus}</span>
+                      </div>
                     </div>
-                    <p>Turno: ${call.shift} • Vagas: ${call.slots} • Interdepartamental: ${call.interdepartmentOpen ? "Sim" : "Não"}</p>
+                    <p>Shift: ${shortCall.shift} • Seats: ${shortCall.slots} • Cross-department: ${shortCall.interdepartmentOpen ? "Yes" : "No"}</p>
+                    <p class="meta">Schedule owner: ${scheduleReviewer || "Pending"} • Notes: ${shortCall.scheduleNotes || "-"}</p>
                     ${
-                      ranking.length === 0
-                        ? `<div class="notice">Sem candidatos até o momento.</div>`
+                      shortCall.scheduleStatus !== SHORT_CALL_STATUSES.APPROVED
+                        ? `<div class="notice">This call is not visible to employees until Schedule approval.</div>`
+                        : ranking.length === 0
+                        ? `<div class="notice">Approved and live. No applications yet.</div>`
                         : `<ul class="list">${ranking
-                            .map((candidate, index) => {
-                              const applicant = state.users.find((u) => u.id === candidate.userId);
-                              const status = getStatusForPosition(index + 1, call.slots);
-                              candidate.status = status;
-                              return `<li class="item">#${index + 1} — ${applicant.name} (${applicant.department}) • ${new Date(candidate.appliedAt).toLocaleString(
-                                "pt-BR"
+                            .map((applicationEntry, index) => {
+                              const applicant = getUserById(applicationEntry.userId);
+                              const status = getApplicationStatus(index + 1, shortCall.slots);
+                              applicationEntry.status = status;
+                              return `<li class="item">#${index + 1} — ${applicant?.name || "Unknown"} (${applicant?.department || "N/A"}) • ${formatDate(
+                                applicationEntry.appliedAt
                               )} • <span class="tag ${status}">${status}</span></li>`;
                             })
                             .join("")}</ul>`
+                    }
+                  </li>
+                `;
+              })
+              .join("")}
+            ${managerVisibleCalls.length === 0 ? `<li class="notice">You have not created any short-calls yet.</li>` : ""}
+          </ul>
+        </section>
+      </main>
+    `;
+
+    document.getElementById("createForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const title = document.getElementById("title").value.trim();
+      const slots = Number(document.getElementById("slots").value);
+      if (!title || Number.isNaN(slots) || slots < 1) return;
+
+      createShortCall(
+        {
+          title,
+          department: document.getElementById("department").value,
+          shift: document.getElementById("shift").value,
+          slots,
+          interdepartmentOpen: document.getElementById("openAll").value === "true",
+        },
+        user.id
+      );
+
+      renderManagerDashboard();
+    });
+
+    bindCommonActions(user);
+  });
+}
+
+function renderScheduleDashboard() {
+  requireAuth(["schedule", "admin"], (user) => {
+    const pendingCalls = state.shortCalls.filter((shortCall) => shortCall.scheduleStatus === SHORT_CALL_STATUSES.PENDING_SCHEDULE);
+
+    app.innerHTML = `
+      <main class="container">
+        ${renderHeader(user)}
+
+        <section class="kpi">
+          <article class="item"><small>Pending Review</small><strong>${pendingCalls.length}</strong></article>
+          <article class="item"><small>Approved</small><strong>${state.shortCalls.filter((item) => item.scheduleStatus === SHORT_CALL_STATUSES.APPROVED).length}</strong></article>
+          <article class="item"><small>Rejected</small><strong>${state.shortCalls.filter((item) => item.scheduleStatus === SHORT_CALL_STATUSES.REJECTED).length}</strong></article>
+        </section>
+
+        <section class="card decorated-card" style="margin-top: 1rem;">
+          <h3>⬢ Schedule Approval Queue</h3>
+          <ul class="list">
+            ${state.shortCalls
+              .map((shortCall) => {
+                const creator = getUserById(shortCall.createdBy);
+                const isPending = shortCall.scheduleStatus === SHORT_CALL_STATUSES.PENDING_SCHEDULE;
+                return `
+                  <li class="item">
+                    <div class="row">
+                      <strong>${shortCall.title}</strong>
+                      <span class="tag schedule ${shortCall.scheduleStatus}">${shortCall.scheduleStatus}</span>
+                    </div>
+                    <p>Requested by: ${creator?.name || "Unknown"} • Department: ${shortCall.department} • Shift: ${shortCall.shift} • Seats: ${shortCall.slots}</p>
+                    <p class="meta">Created: ${formatDate(shortCall.createdAt)} • Notes: ${shortCall.scheduleNotes || "-"}</p>
+                    ${
+                      isPending
+                        ? `<div class="row">
+                            <button class="button approveButton" data-id="${shortCall.id}" data-decision="approved">Approve</button>
+                            <button class="button rejectButton" data-id="${shortCall.id}" data-decision="rejected">Reject</button>
+                          </div>`
+                        : `<div class="notice">Finalized by ${getUserById(shortCall.scheduleReviewedBy)?.name || "Schedule"} on ${formatDate(
+                            shortCall.scheduleReviewedAt || shortCall.createdAt
+                          )}.</div>`
                     }
                   </li>
                 `;
@@ -322,20 +516,17 @@ function renderManagerDashboard() {
       </main>
     `;
 
-    document.getElementById("createForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      state.shortCalls.unshift({
-        id: crypto.randomUUID(),
-        title: document.getElementById("title").value.trim(),
-        department: document.getElementById("department").value,
-        shift: document.getElementById("shift").value,
-        slots: Number(document.getElementById("slots").value),
-        interdepartmentOpen: document.getElementById("openAll").value === "true",
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-      });
+    document.querySelectorAll(".approveButton, .rejectButton").forEach((button) => {
+      button.addEventListener("click", () => {
+        const decision = button.dataset.decision === "approved" ? SHORT_CALL_STATUSES.APPROVED : SHORT_CALL_STATUSES.REJECTED;
+        const note =
+          decision === SHORT_CALL_STATUSES.APPROVED
+            ? "Approved by Schedule for balanced department frequency."
+            : "Rejected by Schedule due to frequency limits in current shift.";
 
-      renderManagerDashboard();
+        setScheduleDecision(button.dataset.id, decision, user.id, note);
+        renderScheduleDashboard();
+      });
     });
 
     bindCommonActions(user);
@@ -343,26 +534,31 @@ function renderManagerDashboard() {
 }
 
 function bindCommonActions(user) {
-  const logout = document.getElementById("logout");
-  if (logout) {
-    logout.addEventListener("click", () => {
+  const logoutButton = document.getElementById("logout");
+  if (logoutButton) {
+    logoutButton.addEventListener("click", () => {
       localStorage.removeItem("scw_token");
       renderLogin();
     });
   }
 
-  const gotoEmployee = document.getElementById("gotoEmployee");
-  if (gotoEmployee) {
-    gotoEmployee.addEventListener("click", renderEmployeeDashboard);
+  const employeeButton = document.getElementById("gotoEmployee");
+  if (employeeButton) {
+    employeeButton.addEventListener("click", renderEmployeeDashboard);
   }
 
-  const gotoManager = document.getElementById("gotoManager");
-  if (gotoManager) {
-    gotoManager.addEventListener("click", () => {
-      if (user.role === "employee") {
-        renderEmployeeDashboard();
-      } else {
+  const managerButton = document.getElementById("gotoManager");
+  if (managerButton) {
+    managerButton.addEventListener("click", renderManagerDashboard);
+  }
+
+  const scheduleButton = document.getElementById("gotoSchedule");
+  if (scheduleButton) {
+    scheduleButton.addEventListener("click", () => {
+      if (user.role === "employee" || user.role === "manager") {
         renderManagerDashboard();
+      } else {
+        renderScheduleDashboard();
       }
     });
   }
@@ -377,6 +573,11 @@ function route() {
 
   if (user.role === "employee") {
     renderEmployeeDashboard();
+    return;
+  }
+
+  if (user.role === "schedule") {
+    renderScheduleDashboard();
     return;
   }
 
