@@ -123,6 +123,15 @@ function getApplicationStatus(position, slots) {
   return "waitlisted";
 }
 
+function refreshApplicationStatuses() {
+  state.shortCalls.forEach((shortCall) => {
+    const ranking = applicationsForCall(shortCall.id);
+    ranking.forEach((applicationEntry, index) => {
+      applicationEntry.status = getApplicationStatus(index + 1, shortCall.slots);
+    });
+  });
+}
+
 function eligibleShortCallsForEmployee(user) {
   return state.shortCalls.filter(
     (shortCall) =>
@@ -156,6 +165,8 @@ function setScheduleDecision(shortCallId, decisionStatus, reviewerId, scheduleNo
   if (decisionStatus === SHORT_CALL_STATUSES.REJECTED) {
     state.applications = state.applications.filter((application) => application.shortCallId !== shortCallId);
   }
+
+  refreshApplicationStatuses();
 }
 
 function applyToShortCall(shortCallId, userId) {
@@ -175,6 +186,8 @@ function applyToShortCall(shortCallId, userId) {
     appliedAt: new Date().toISOString(),
     status: "pending",
   });
+
+  refreshApplicationStatuses();
 }
 
 function renderHeader(user) {
@@ -245,6 +258,8 @@ function renderLogin(errorMessage = "") {
 
 function renderEmployeeDashboard() {
   requireAuth(["employee"], (user) => {
+    refreshApplicationStatuses();
+
     const eligibleCalls = eligibleShortCallsForEmployee(user);
     const userApplications = state.applications.filter((application) => application.userId === user.id);
     const confirmedCount = userApplications.filter((application) => application.status === "confirmed").length;
